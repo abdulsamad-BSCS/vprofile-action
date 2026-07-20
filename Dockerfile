@@ -1,7 +1,6 @@
 FROM maven:3.9.9-eclipse-temurin-17 AS BUILD_IMAGE
-RUN apt update && apt install maven -y
 COPY ./ vprofile-project
-RUN cd vprofile-project &&  mvn install 
+RUN cd vprofile-project && mvn install
 
 FROM tomcat:10.1-jdk17-temurin
 LABEL "Project"="Vprofile"
@@ -11,4 +10,3 @@ COPY --from=BUILD_IMAGE vprofile-project/target/vprofile-v2.war /usr/local/tomca
 
 EXPOSE 8080
 CMD ["catalina.sh", "run"]
-#
