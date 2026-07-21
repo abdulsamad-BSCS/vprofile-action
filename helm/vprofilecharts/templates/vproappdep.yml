@@ -15,7 +15,6 @@ spec:
         app: vproapp
     spec:
       containers:
-      
       - name: vproapp
         image: {{ .Values.appimage}}: {{ .Values.tagname}}
         ports:
