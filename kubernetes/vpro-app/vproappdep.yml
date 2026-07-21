@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: vproapp
-  labels:
+  labels: 
     app: vproapp
 spec:
   replicas: 1
@@ -15,6 +15,7 @@ spec:
         app: vproapp
     spec:
       containers:
+      
       - name: vproapp
         image: "{{ .Values.appimage }}:{{ .Values.tagname }}"
         ports:
