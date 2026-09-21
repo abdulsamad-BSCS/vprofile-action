@@ -52,7 +52,7 @@ jobs:
           path: target/checkstyle-result.xml
           if-no-files-found: warn
 
-      # 5. SonarQube analysis
+      # 5. SonarQube analysis (fully-qualified plugin so Maven can resolve it)
       - name: SonarQube Analysis
         run: |
           mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.0.0.4389:sonar \
@@ -61,6 +61,7 @@ jobs:
             -Dsonar.organization="$SONAR_ORGANIZATION" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
             -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
+
       # 6. SonarQube Quality Gate
       - name: SonarQube Quality Gate
         uses: sonarsource/sonarqube-quality-gate-action@v1
