@@ -170,3 +170,55 @@ jobs:
         run: |
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+  DeployToEKS:
+    name: "Deploy to EKS with Helm"
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 1. Checkout source code (needs the helm/ folder)
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2. AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 3. Get the ECR registry address
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 4. Point kubectl at the EKS cluster
+      - name: Get Kube config file
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+      # 5. Kubernetes login to ECR (secret named regcred)
+      - name: Login to ECR (Kubernetes secret)
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          kubectl create secret docker-registry regcred \
+            --docker-server="$ECR_REGISTRY" \
+            --docker-username=AWS \
+            --docker-password="$(aws ecr get-login-password --region ${{ env.AWS_REGION }})" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # 6. Deploy with Helm
+      - name: Deploy Helm
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.8
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          cluster-name: ${{ env.EKS_CLUSTER }}
+          chart-path: helm/vprofilecharts
+          namespace: default
+          values: appimage=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }},apptag=${{ github.sha }}
+          name: vprofile-stack
