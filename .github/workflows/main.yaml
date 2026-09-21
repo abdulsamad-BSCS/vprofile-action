@@ -55,13 +55,12 @@ jobs:
       # 5. SonarQube analysis
       - name: SonarQube Analysis
         run: |
-          mvn -B sonar:sonar \
+          mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.0.0.4389:sonar \
             -Dsonar.host.url="$SONAR_URL" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.organization="$SONAR_ORGANIZATION" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
             -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
-
       # 6. SonarQube Quality Gate
       - name: SonarQube Quality Gate
         uses: sonarsource/sonarqube-quality-gate-action@v1
