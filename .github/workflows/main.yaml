@@ -52,7 +52,25 @@ jobs:
           path: target/checkstyle-result.xml
           if-no-files-found: warn
 
-      # 5. SonarQube analysis (fully-qualified plugin so Maven can resolve it)
+      # 5. Validate Sonar secrets (fails fast with a clear message)
+      - name: Validate Sonar secrets
+        run: |
+          missing=0
+          for v in SONAR_URL SONAR_TOKEN SONAR_ORGANIZATION SONAR_PROJECT_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Secret $v is EMPTY or not set in this repo/environment"
+              missing=1
+            else
+              echo "$v is set"
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          case "$SONAR_URL" in
+            http://*|https://*) ;;
+            *) echo "::error::SONAR_URL must start with http:// or https://"; exit 1 ;;
+          esac
+
+      # 6. SonarQube analysis
       - name: SonarQube Analysis
         run: |
           mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.0.0.4389:sonar \
@@ -62,7 +80,7 @@ jobs:
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
             -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
 
-      # 6. SonarQube Quality Gate
+      # 7. SonarQube Quality Gate
       - name: SonarQube Quality Gate
         uses: sonarsource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
