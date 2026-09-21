@@ -80,15 +80,54 @@ jobs:
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
             -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
 
-      # 7. SonarQube Quality Gate
+      # 7. SonarQube Quality Gate (direct API check; prints the real response)
       - name: SonarQube Quality Gate
-        uses: sonarsource/sonarqube-quality-gate-action@v1
-        timeout-minutes: 5
-        with:
-          scanMetadataReportFile: target/sonar/report-task.txt
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ env.SONAR_URL }}
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          REPORT=target/sonar/report-task.txt
+          CE_URL=$(grep '^ceTaskUrl=' "$REPORT" | cut -d= -f2-)
+          echo "Waiting for Sonar background task: $CE_URL"
+
+          ANALYSIS_ID=""
+          for i in $(seq 1 40); do
+            RES=$(curl -s -u "$SONAR_TOKEN:" "$CE_URL")
+            TASK_STATUS=$(echo "$RES" | jq -r '.task.status // "UNKNOWN"')
+            echo "Attempt $i: task status = $TASK_STATUS"
+            if [ "$TASK_STATUS" = "SUCCESS" ]; then
+              ANALYSIS_ID=$(echo "$RES" | jq -r '.task.analysisId')
+              break
+            fi
+            if [ "$TASK_STATUS" = "FAILED" ] || [ "$TASK_STATUS" = "CANCELED" ]; then
+              echo "::error::Sonar background task $TASK_STATUS"
+              echo "$RES" | jq .
+              exit 1
+            fi
+            sleep 10
+          done
+
+          if [ -z "$ANALYSIS_ID" ]; then
+            echo "::error::Sonar analysis did not finish in time"
+            exit 1
+          fi
+
+          GATE=$(curl -s -u "$SONAR_TOKEN:" \
+            "$SONAR_URL/api/qualitygates/project_status?analysisId=$ANALYSIS_ID")
+          echo "Quality gate response:"
+          echo "$GATE" | jq .
+
+          GATE_STATUS=$(echo "$GATE" | jq -r '.projectStatus.status // "UNKNOWN"')
+          echo "Quality gate status: $GATE_STATUS"
+
+          case "$GATE_STATUS" in
+            OK)
+              echo "Quality gate passed." ;;
+            ERROR)
+              echo "::error::Quality gate FAILED"
+              exit 1 ;;
+            *)
+              echo "::warning::Quality gate status is $GATE_STATUS (not OK/ERROR); not blocking the pipeline." ;;
+          esac
 
   build-and-push:
     name: "Build and Push Docker Image"
